@@ -1,0 +1,20 @@
+{
+  "name": "m-twitter-bot",
+  "version": "0.0.0",
+  "description": "A twitter bot",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/muunae/m-twitter-bot"
+  },
+  "author": "Mayfield Tech",
+  "dependencies": {
+    "babel": "^5.6.14",
+    "bluebird": "^3.4.1",
+    "twitter": "^1.4.0"
+  },
+  "devDependencies": {}
+}
