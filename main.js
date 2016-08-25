@@ -1,7 +1,7 @@
 var twitter = require('twitter');
 var promise = require('bluebird');
 
-// Client for twitter
+// Client for twitter (promisified)
 var client = promise.promisifyAll(new twitter({
   consumer_key: process.env.TWITTER_CONSUMER_KEY,
   consumer_secret: process.env.TWITTER_CONSUMER_SECRET,
@@ -16,123 +16,84 @@ var thanksMessage = process.env.MESSAGE || ', thanks! Please follow me back!';
 // Log bugs
 process.on('unhandledRejection', console.log);
 
-//Variables
-
-// Contains the tweet list we are looking to check retweets
-var tweetList = new Array();
-
-// Contains the list to follow and tweet
-var toFollowList = new Array();
-
-// Contains the list to just tweet
-var toTweetList = new Array();
-
-// Contains the list to check relationships
-var checkRelationshipList = new Array();
-
-// Contains the list of users tweeted
-var tweeted = new Array();
+/*
+**  Variables
+*/
 
 // Contains the list the (bot) user is following 
 var followingList = new Array();
 
-// Functions and program
-async function findTweets(){
-  console.log("Looking for tweets!");
+/*
+**  Util Functions
+*/
+
+/*
+**  Check relationship with users
+**  If user is not being followed, it will follow and tweet to that user
+*/
+async function checkRelationship(target_id, user_name){
+  console.log("Checking relationship with user: " + user_name);
+  if (followingList.indexOf(target_id) > -1) return false;
   let options = {
-    user_id: user_id
-  }; 
-  let response = await client.getAsync('statuses/user_timeline');
-  for (let i = 0; i<response.length; i++){
-    if (response[i].user.id == user_id){
-      tweetList.push(response[i].id_str);
-    }
+    source_id : user_id,
+    target_id : target_id
+  }
+  let response = await client.getAsync('friendships/show', options);
+  if (! response.relationship.source.following){
+    followAndTweet(target_id, response.relationship.target.screen_name, user_name);
+  } else {
+    followingList.push(target_id);
   }
 }
 
-// Find retweeters and push them to checkRelationshipList
-async function findRetweeters(){
-  console.log("Looking for retweeters!");
-  for (let i = 0; i<tweetList.length; i++){
-    let options = {
-      id : tweetList[i]
-    };
-    let response = await client.getAsync('statuses/retweeters/ids', options);
-    for (let i = 0; i<response.ids.length; i++){
-      if ((!followingList.indexOf(response.ids[i]) > -1) || (! checkRelationshipList.indexOf(response.ids[i]) ) || (! tweeted.indexOf(response.ids[i]) )) {
-        checkRelationshipList.push(response.ids[i]);
+/*
+**  Follow and tweet to users
+*/
+async function followAndTweet(target_id, screen_name, user_name){
+  console.log("Following and tweeting to " + user_name);
+  // Tweet
+  let message = "@" + screen_name + thanksMessage;
+  let options = {
+    status : message
+  }
+  let response = await client.postAsync('statuses/update', options);
+  // Follow
+  options = {
+    follow : true,
+    user_id : target_id
+  };
+  response = await client.postAsync('friendships/create', options);
+  followingList.push(target_id);
+}
+
+/*
+**  Streaming functions
+*/
+
+client.stream('user', function(stream){
+  stream.on('favorite', function(favorite){
+    console.log("A user has liked one of our tweets!");
+    checkRelationship(favorite.source.id_str, favorite.source.name);
+  });
+ 
+  stream.on('error', function(error) {
+    console.log(error);
+  });
+});
+
+client.stream('statuses/filter', {follow: user_id}, function(stream) {
+  stream.on('data', function(event) {
+    if (event.retweeted_status){
+      if (event.retweeted_status.user.id_str != event.user.id_str){
+        console.log("A user has retweeted one of our tweets!");
+        checkRelationship(event.user.id_str, event.user.name);
       }
     }
-  }
-}
+  });
+ 
+  stream.on('error', function(error) {
+    console.log(error);
+  });
+});
 
-// Check relationship of users and push them to toFollowList / toTweetList
-async function checkRelationship(){
-  console.log("Checking relationships!");
-  for (let i = 0; i<checkRelationshipList.length; i++){
-    let options = {
-      source_id : user_id,
-      target_id : checkRelationshipList[i]
-    }
-    let response = await client.getAsync('friendships/show', options);
-    if (! response.relationship.source.following){
-      toFollowList.push(checkRelationshipList[i]);
-      toTweetList.push(response.relationship.target.screen_name);
-    }
-  }
-  checkRelationshipList = new Array();
-}
-
-// Follow users
-async function followUsers(){
-  console.log("Following users!");
-  for (let i = 0; i<toFollowList.length; i++){
-    let options = {
-      follow : true,
-      user_id : toFollowList[i]
-    };
-    let response = await client.postAsync('friendships/create', options);
-    followingList.push(toFollowList[i]);
-  }
-}
-
-async function tweetThankingUsers(){
-  console.log("Thanking users (Tweeting)!");
-  for (let i = 0; i<toTweetList.length; i++){
-    let message = "@" + toTweetList[i] + thanksMessage;
-    let options = {
-      status : message
-    }
-    let response = await client.postAsync('statuses/update', options);
-    tweeted.push(toTweetList[i]);
-  }
-}
-
-function cleanVariables(){
-  console.log("Cleaning Variables!");
-  var tweetList = new Array();
-  var toFollowList = new Array();
-  var toTweetList = new Array();
-  var checkRelationshipList = new Array();
-}
-
-// Reads and responds in 5 minutes
-async function readAndRespond(){
-  await findTweets();
-	await findRetweeters();
-  await checkRelationship();
-  await followUsers();
-  await tweetThankingUsers();
-  cleanVariables();
-  console.log("Cicle finished. Waiting 15 minutes to look for retweeters again.");
-	setTimeout(function(){
-		readAndRespond();
-  }, 300000);
-}
-
-// Starting function for bot
-async function startingFunction(){
-  readAndRespond();
-}
-
-startingFunction();
+console.log("Bot has started!");
