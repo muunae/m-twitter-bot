@@ -12,14 +12,15 @@ var client = promise.promisifyAll(new twitter({
 var user_id = process.env.USER_ID || '767430650202845186';
 // Thanking message
 var thanksMessage = process.env.MESSAGE || ', thanks! Please follow me back!';
+// Tweet id
+var tweet_id = process.env.TWEET_ID || '';
 
 // Log bugs
 process.on('unhandledRejection', console.log);
 
-//Variables
-
-// Contains the tweet list we are looking to check retweets
-var tweetList = new Array();
+/*
+**  Variables
+*/
 
 // Contains the list to follow and tweet
 var toFollowList = new Array();
@@ -36,32 +37,20 @@ var tweeted = new Array();
 // Contains the list the (bot) user is following 
 var followingList = new Array();
 
-// Functions and program
-async function findTweets(){
-  console.log("Looking for tweets!");
-  let options = {
-    user_id: user_id
-  }; 
-  let response = await client.getAsync('statuses/user_timeline');
-  for (let i = 0; i<response.length; i++){
-    if (response[i].user.id == user_id){
-      tweetList.push(response[i].id_str);
-    }
-  }
-}
+/* 
+**  Functions and program
+*/
 
 // Find retweeters and push them to checkRelationshipList
 async function findRetweeters(){
   console.log("Looking for retweeters!");
-  for (let i = 0; i<tweetList.length; i++){
-    let options = {
-      id : tweetList[i]
-    };
-    let response = await client.getAsync('statuses/retweeters/ids', options);
-    for (let i = 0; i<response.ids.length; i++){
-      if ((!followingList.indexOf(response.ids[i]) > -1) || (! checkRelationshipList.indexOf(response.ids[i]) ) || (! tweeted.indexOf(response.ids[i]) )) {
-        checkRelationshipList.push(response.ids[i]);
-      }
+  let options = {
+    id : tweet_id
+  };
+  let response = await client.getAsync('statuses/retweeters/ids', options);
+  for (let i = 0; i<response.ids.length; i++){
+    if ((!followingList.indexOf(response.ids[i]) > -1) || (! checkRelationshipList.indexOf(response.ids[i]) ) || (! tweeted.indexOf(response.ids[i]) )) {
+      checkRelationshipList.push(response.ids[i]);
     }
   }
 }
@@ -96,6 +85,7 @@ async function followUsers(){
   }
 }
 
+// Tweet thanking users
 async function tweetThankingUsers(){
   console.log("Thanking users (Tweeting)!");
   for (let i = 0; i<toTweetList.length; i++){
@@ -108,31 +98,12 @@ async function tweetThankingUsers(){
   }
 }
 
-function cleanVariables(){
-  console.log("Cleaning Variables!");
-  var tweetList = new Array();
-  var toFollowList = new Array();
-  var toTweetList = new Array();
-  var checkRelationshipList = new Array();
-}
-
-// Reads and responds in 5 minutes
-async function readAndRespond(){
-  await findTweets();
-	await findRetweeters();
+// Starting function for bot
+async function startingFunction(){
+  await findRetweeters();
   await checkRelationship();
   await followUsers();
   await tweetThankingUsers();
-  cleanVariables();
-  console.log("Cicle finished. Waiting 15 minutes to look for retweeters again.");
-	setTimeout(function(){
-		readAndRespond();
-  }, 300000);
-}
-
-// Starting function for bot
-async function startingFunction(){
-  readAndRespond();
 }
 
 startingFunction();
