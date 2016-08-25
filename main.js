@@ -100,6 +100,11 @@ async function tweetThankingUsers(){
 
 // Starting function for bot
 async function startingFunction(){
+  if (thanksMessage.length > 124){
+    console.log("Message bigger than 124 characters!");
+    console.log("Aborting.");
+    return false;
+  }
   await findRetweeters();
   await checkRelationship();
   await followUsers();
